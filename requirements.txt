@@ -1,27 +1,40 @@
-# Core
-Django==5.0.4
-djangorestframework==3.14.0
-django-cors-headers==4.3.1
+﻿amqp==5.3.1
+asgiref==3.9.1
+billiard==4.2.1
+boto3==1.40.25
+botocore==1.40.25
+celery==5.3.1
+click==8.2.1
+click-didyoumean==0.3.1
+click-plugins==1.1.1.2
+click-repl==0.3.0
+colorama==0.4.6
+dj-database-url==3.0.1
+Django==5.2.6
+django-cleanup==9.0.0
+django-cors-headers==4.7.0
+django-debug-toolbar==6.0.0
+django-extensions==4.1
+django-storages==1.14.6
+djangorestframework==3.16.1
+djangorestframework_simplejwt==5.5.1
+jmespath==1.0.1
+kombu==5.5.4
+packaging==25.0
+prompt_toolkit==3.0.52
+psycopg2-binary==2.9.10
+PyJWT==2.10.1
+python-dateutil==2.9.0.post0
 python-decouple==3.8
-psycopg2-binary==2.9.9
-
-# Authentification
-djangorestframework-simplejwt==5.3.1
-PyJWT==2.8.0
-
-# Stockage & Médias
-django-storages==1.13.2
-boto3==1.28.74
-
-# Base de données
-dj-database-url==2.1.0
-
-# Utilitaires
-python-dateutil==2.8.2
-pytz==2023.3
+python-dotenv==1.1.1
+pytz==2025.2
+s3transfer==0.13.1
+six==1.17.0
+sqlparse==0.5.3
+tzdata==2025.2
+urllib3==2.5.0
 uuid==1.30
+vine==5.1.0
+wcwidth==0.2.13
+whitenoise==6.9.0
 
-# Développement (optionnel)
-python-dotenv==1.0.0
-django-extensions==3.2.3
-django-debug-toolbar==4.2.0

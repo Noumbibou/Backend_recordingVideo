@@ -1,0 +1,11 @@
+<!-- templates/emails/candidate_invitation.html -->
+<!DOCTYPE html>
+<html>
+<body>
+    <p>Bonjour {{ candidate.first_name }},</p>
+    <p>Vous avez été invité à passer un entretien vidéo pour le poste de {{ campaign.title }}.</p>
+    <p>Pour commencer, veuillez cliquer sur le lien ci-dessous :</p>
+    <p><a href="{{ invitation_url }}">Accéder à l'entretien</a></p>
+    <p>Cordialement,<br>L'équipe de recrutement</p>
+</body>
+</html>

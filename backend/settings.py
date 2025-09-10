@@ -87,7 +87,7 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'recording_video',
+        'NAME': 'enregistrements_video',
         'USER': 'postgres',
         'PASSWORD': 'Bidou0204./',
         'HOST': 'localhost',
@@ -140,12 +140,48 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # CORS Configuration
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # En développement seulement
+if not DEBUG:
+    CORS_ALLOWED_ORIGINS = [
+        'http://localhost:3000',  # Votre frontend React
+        'https://votredomaine.com',  # Votre domaine de production
+    ]
+
+# Autoriser les en-têtes et méthodes nécessaires
+CORS_ALLOW_HEADERS = [
+    *default_headers,
+    'content-disposition',
+    'content-range',
+    'range',
+    'authorization',
+    'accept',
+    'accept-encoding',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-requested-with',
 ]
 
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+# Autoriser les cookies d'authentification
 CORS_ALLOW_CREDENTIALS = True
+
+# Exposer les en-têtes personnalisés
+CORS_EXPOSE_HEADERS = [
+    'content-disposition',
+    'content-range',
+    'content-length',
+    'range',
+]
 
 # REST Framework Configuration
 REST_FRAMEWORK = {
@@ -201,16 +237,30 @@ ALLOWED_VIDEO_MIME_TYPES = [
 ]
 MAX_RECORDING_DURATION = 600  # 10 minutes (en secondes)
 
-# CORS Settings (extends existing)
-CORS_ALLOW_HEADERS = [
-    *default_headers,
-    'content-range',
-    'range',
-]
-CORS_EXPOSE_HEADERS = ['Content-Length', 'Content-Range']
-
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "https://votre-domaine.com",
 ]
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+from datetime import timedelta
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),   # Token valable 5 min
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),     # Refresh valable 1 jour
+    "ROTATE_REFRESH_TOKENS": True,                   # Générer un nouveau refresh à chaque demande
+    "BLACKLIST_AFTER_ROTATION": True,                # L'ancien refresh est invalidé
+    "AUTH_HEADER_TYPES": ("Bearer",),                # Utilisation du header Authorization: Bearer <token>
+}
+# settings.py
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'bidourichnel@gmail.com'  # Votre adresse Gmail
+EMAIL_HOST_PASSWORD = 'asaw tutd wxkv wnno'  # Mot de passe d'application Gmail
+DEFAULT_FROM_EMAIL = 'bidourichnel@gmail.com'

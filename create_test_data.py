@@ -1,135 +1,100 @@
-#!/usr/bin/env python
 import os
 import sys
-import django
-from datetime import datetime, timedelta
+import json
+import types
 
-# Configuration Django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
+# ajuster si nécessaire
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "backend.settings")
+ROOT = os.path.dirname(os.path.dirname(__file__))
+sys.path.insert(0, ROOT)
+
+import django
 django.setup()
 
-from django.contrib.auth.models import User
-from interviews.models import HiringManager, VideoCampaign, Question
+from django.apps import apps
 
-def create_test_data():
-    """Créer des données de test pour l'application"""
-    
-    # Créer un utilisateur de test
-    user, created = User.objects.get_or_create(
-        username='testuser',
-        defaults={
-            'email': 'test@example.com',
-            'first_name': 'Test',
-            'last_name': 'User'
-        }
-    )
-    if created:
-        user.set_password('testpass123')
-        user.save()
-        print(f"Utilisateur créé: {user.username}")
-    else:
-        print(f"Utilisateur existant: {user.username}")
-    
-    # Créer un hiring manager
-    hiring_manager, created = HiringManager.objects.get_or_create(
-        user=user,
-        defaults={
-            'company': 'Test Company',
-            'position': 'HR Manager'
-        }
-    )
-    if created:
-        print(f"Hiring Manager créé pour {user.username}")
-    else:
-        print(f"Hiring Manager existant pour {user.username}")
-    
-    # Créer des questions de test
-    questions_data = [
-        {
-            'text': 'Pouvez-vous vous présenter en 2 minutes ?',
-            'order': 1,
-            'preparation_time': 30,
-            'response_time_limit': 120,
-            'is_required': True
-        },
-        {
-            'text': 'Quelle est votre plus grande réussite professionnelle ?',
-            'order': 2,
-            'preparation_time': 30,
-            'response_time_limit': 180,
-            'is_required': True
-        },
-        {
-            'text': 'Pourquoi souhaitez-vous rejoindre notre entreprise ?',
-            'order': 3,
-            'preparation_time': 30,
-            'response_time_limit': 150,
-            'is_required': True
-        }
-    ]
-    
-    questions = []
-    for q_data in questions_data:
-        question, created = Question.objects.get_or_create(
-            text=q_data['text'],
-            defaults=q_data
-        )
-        questions.append(question)
-        if created:
-            print(f"Question créée: {question.text[:50]}...")
-    
-    # Créer une campagne de test
-    campaign, created = VideoCampaign.objects.get_or_create(
-        title='Campagne de test - Développeur Full Stack',
-        defaults={
-            'hiring_manager': hiring_manager,
-            'description': 'Entretien pour un poste de développeur full stack',
-            'preparation_time': 30,
-            'response_time_limit': 180,
-            'max_questions': 3,
-            'allow_retry': True,
-            'start_date': datetime.now().date(),
-            'end_date': (datetime.now() + timedelta(days=30)).date(),
-            'is_active': True
-        }
-    )
-    
-    if created:
-        # Ajouter les questions à la campagne
-        campaign.questions.set(questions)
-        print(f"Campagne créée: {campaign.title}")
-    else:
-        print(f"Campagne existante: {campaign.title}")
-    
-    # Créer une deuxième campagne
-    campaign2, created = VideoCampaign.objects.get_or_create(
-        title='Campagne de test - Chef de projet',
-        defaults={
-            'hiring_manager': hiring_manager,
-            'description': 'Entretien pour un poste de chef de projet',
-            'preparation_time': 45,
-            'response_time_limit': 240,
-            'max_questions': 2,
-            'allow_retry': False,
-            'start_date': datetime.now().date(),
-            'end_date': (datetime.now() + timedelta(days=15)).date(),
-            'is_active': True
-        }
-    )
-    
-    if created:
-        # Ajouter seulement les 2 premières questions
-        campaign2.questions.set(questions[:2])
-        print(f"Campagne créée: {campaign2.title}")
-    else:
-        print(f"Campagne existante: {campaign2.title}")
-    
-    print("\n✅ Données de test créées avec succès!")
-    print(f"📊 {VideoCampaign.objects.count()} campagnes disponibles")
-    print(f"❓ {Question.objects.count()} questions disponibles")
-    print(f"👤 {User.objects.count()} utilisateurs")
+def safe(v):
+    """Rendre v sérialisable en JSON: primitives inchangées, autres -> string."""
+    try:
+        json.dumps(v)
+        return v
+    except Exception:
+        # fonctions, classes, field objects, datetimes, etc.
+        if isinstance(v, (types.FunctionType, types.BuiltinFunctionType, types.MethodType)):
+            return f"<callable {getattr(v, '__name__', repr(v))}>"
+        try:
+            return repr(v)
+        except Exception:
+            return str(type(v))
 
-if __name__ == '__main__':
-    create_test_data()
+def inspect_model(app_label, model_name):
+    try:
+        model = apps.get_model(app_label, model_name)
+    except LookupError:
+        return {"error": f"Model {app_label}.{model_name} not found"}
+    fields = []
+    for f in model._meta.get_fields():
+        # skip automatic reverse relations
+        if getattr(f, "auto_created", False) and not getattr(f, "concrete", False):
+            continue
+        info = {
+            "name": getattr(f, "name", str(f)),
+            "type": getattr(f, "get_internal_type", lambda: type(f).__name__)(),
+        }
+        # safe-read common attrs
+        for attr in ("null", "blank", "unique", "max_length"):
+            if hasattr(f, attr):
+                info[attr] = safe(getattr(f, attr))
+        # default can be callable -> safe it
+        if hasattr(f, "default"):
+            try:
+                info["default"] = safe(getattr(f, "default"))
+            except Exception:
+                info["default"] = "<unreadable>"
+        # relation info
+        if getattr(f, "is_relation", False):
+            rel = {}
+            rel_obj = getattr(f, "related_model", None)
+            rel["related_model"] = f"{rel_obj._meta.app_label}.{rel_obj.__name__}" if rel_obj else None
+            rel["many_to_many"] = safe(getattr(f, "many_to_many", False))
+            rel["one_to_many"] = safe(getattr(f, "one_to_many", False))
+            info["relation"] = rel
+        fields.append(info)
+    return fields
 
+out = {"models": {}, "serializers": {}}
 
+# candidate model names to try
+candidates = [
+    ("interviews", "VideoCampaign"),
+    ("interviews", "Campaign"),
+    ("interviews", "VideoCampaignModel"),
+    ("interviews", "VideoCampaigns"),
+]
+
+for app_label, model_name in candidates:
+    out["models"][f"{app_label}.{model_name}"] = inspect_model(app_label, model_name)
+
+# inspect serializers in interviews.serializers
+try:
+    import inspect as _inspect
+    import interviews.serializers as sermod
+    from rest_framework import serializers as drf_serializers
+    for name, obj in _inspect.getmembers(sermod, _inspect.isclass):
+        try:
+            if issubclass(obj, drf_serializers.BaseSerializer):
+                meta = {}
+                M = getattr(obj, "Meta", None)
+                if M and hasattr(M, "fields"):
+                    meta["meta_fields"] = safe(getattr(M, "fields"))
+                # declared fields
+                declared = getattr(obj, "_declared_fields", None)
+                if declared is not None:
+                    meta["declared_fields"] = list(declared.keys())
+                out["serializers"][name] = meta or {"note": "serializer detected"}
+        except Exception:
+            continue
+except Exception as e:
+    out["serializers_error"] = str(e)
+
+print(json.dumps(out, indent=2, ensure_ascii=False))

@@ -1,0 +1,169 @@
+admin/  [include]
+admin/  -> AdminSite.index
+admin/login/  -> AdminSite.login
+admin/logout/  -> AdminSite.logout
+admin/password_change/  -> AdminSite.password_change
+admin/password_change/done/  -> AdminSite.password_change_done
+admin/autocomplete/  -> AdminSite.autocomplete_view
+admin/jsi18n/  -> AdminSite.i18n_javascript
+admin/r/<int:content_type_id>/<path:object_id>/  -> shortcut
+admin/auth/group/  [include]
+admin/auth/group/  -> ModelAdmin.changelist_view
+admin/auth/group/add/  -> ModelAdmin.add_view
+admin/auth/group/<path:object_id>/history/  -> ModelAdmin.history_view
+admin/auth/group/<path:object_id>/delete/  -> ModelAdmin.delete_view
+admin/auth/group/<path:object_id>/change/  -> ModelAdmin.change_view
+admin/auth/group/<path:object_id>/  -> View.as_view.<locals>.view
+admin/auth/user/  [include]
+admin/auth/user/<id>/password/  -> UserAdmin.user_change_password
+admin/auth/user/  -> ModelAdmin.changelist_view
+admin/auth/user/add/  -> UserAdmin.add_view
+admin/auth/user/<path:object_id>/history/  -> ModelAdmin.history_view
+admin/auth/user/<path:object_id>/delete/  -> ModelAdmin.delete_view
+admin/auth/user/<path:object_id>/change/  -> ModelAdmin.change_view
+admin/auth/user/<path:object_id>/  -> View.as_view.<locals>.view
+admin/interviews/hiringmanager/  [include]
+admin/interviews/hiringmanager/  -> ModelAdmin.changelist_view
+admin/interviews/hiringmanager/add/  -> ModelAdmin.add_view
+admin/interviews/hiringmanager/<path:object_id>/history/  -> ModelAdmin.history_view 
+admin/interviews/hiringmanager/<path:object_id>/delete/  -> ModelAdmin.delete_view   
+admin/interviews/hiringmanager/<path:object_id>/change/  -> ModelAdmin.change_view   
+admin/interviews/hiringmanager/<path:object_id>/  -> View.as_view.<locals>.view      
+admin/interviews/evaluation/  [include]
+admin/interviews/evaluation/  -> ModelAdmin.changelist_view
+admin/interviews/evaluation/add/  -> ModelAdmin.add_view
+admin/interviews/evaluation/<path:object_id>/history/  -> ModelAdmin.history_view    
+admin/interviews/evaluation/<path:object_id>/delete/  -> ModelAdmin.delete_view      
+admin/interviews/evaluation/<path:object_id>/change/  -> ModelAdmin.change_view      
+admin/interviews/evaluation/<path:object_id>/  -> View.as_view.<locals>.view
+admin/interviews/candidate/  [include]
+admin/interviews/candidate/  -> ModelAdmin.changelist_view
+admin/interviews/candidate/add/  -> ModelAdmin.add_view
+admin/interviews/candidate/<path:object_id>/history/  -> ModelAdmin.history_view     
+admin/interviews/candidate/<path:object_id>/delete/  -> ModelAdmin.delete_view       
+admin/interviews/candidate/<path:object_id>/change/  -> ModelAdmin.change_view       
+admin/interviews/candidate/<path:object_id>/  -> View.as_view.<locals>.view
+admin/interviews/videocampaign/  [include]
+admin/interviews/videocampaign/  -> ModelAdmin.changelist_view
+admin/interviews/videocampaign/add/  -> ModelAdmin.add_view
+admin/interviews/videocampaign/<path:object_id>/history/  -> ModelAdmin.history_view 
+admin/interviews/videocampaign/<path:object_id>/delete/  -> ModelAdmin.delete_view   
+admin/interviews/videocampaign/<path:object_id>/change/  -> ModelAdmin.change_view   
+admin/interviews/videocampaign/<path:object_id>/  -> View.as_view.<locals>.view      
+admin/interviews/dashboardmetrics/  [include]
+admin/interviews/dashboardmetrics/  -> ModelAdmin.changelist_view
+admin/interviews/dashboardmetrics/add/  -> ModelAdmin.add_view
+admin/interviews/dashboardmetrics/<path:object_id>/history/  -> ModelAdmin.history_view
+admin/interviews/dashboardmetrics/<path:object_id>/delete/  -> ModelAdmin.delete_viewadmin/interviews/dashboardmetrics/<path:object_id>/change/  -> ModelAdmin.change_viewadmin/interviews/dashboardmetrics/<path:object_id>/  -> View.as_view.<locals>.view   
+admin/interviews/question/  [include]
+admin/interviews/question/  -> ModelAdmin.changelist_view
+admin/interviews/question/add/  -> ModelAdmin.add_view
+admin/interviews/question/<path:object_id>/history/  -> ModelAdmin.history_view      
+admin/interviews/question/<path:object_id>/delete/  -> ModelAdmin.delete_view        
+admin/interviews/question/<path:object_id>/change/  -> ModelAdmin.change_view        
+admin/interviews/question/<path:object_id>/  -> View.as_view.<locals>.view
+admin/interviews/videoresponse/  [include]
+admin/interviews/videoresponse/  -> ModelAdmin.changelist_view
+admin/interviews/videoresponse/add/  -> ModelAdmin.add_view
+admin/interviews/videoresponse/<path:object_id>/history/  -> ModelAdmin.history_view 
+admin/interviews/videoresponse/<path:object_id>/delete/  -> ModelAdmin.delete_view   
+admin/interviews/videoresponse/<path:object_id>/change/  -> ModelAdmin.change_view   
+admin/interviews/videoresponse/<path:object_id>/  -> View.as_view.<locals>.view      
+admin/interviews/interviewsession/  [include]
+admin/interviews/interviewsession/  -> ModelAdmin.changelist_view
+admin/interviews/interviewsession/add/  -> ModelAdmin.add_view
+admin/interviews/interviewsession/<path:object_id>/history/  -> ModelAdmin.history_view
+admin/interviews/interviewsession/<path:object_id>/delete/  -> ModelAdmin.delete_viewadmin/interviews/interviewsession/<path:object_id>/change/  -> ModelAdmin.change_viewadmin/interviews/interviewsession/<path:object_id>/  -> View.as_view.<locals>.view   
+admin/interviews/sessionlog/  [include]
+admin/interviews/sessionlog/  -> ModelAdmin.changelist_view
+admin/interviews/sessionlog/add/  -> ModelAdmin.add_view
+admin/interviews/sessionlog/<path:object_id>/history/  -> ModelAdmin.history_view    
+admin/interviews/sessionlog/<path:object_id>/delete/  -> ModelAdmin.delete_view      
+admin/interviews/sessionlog/<path:object_id>/change/  -> ModelAdmin.change_view      
+admin/interviews/sessionlog/<path:object_id>/  -> View.as_view.<locals>.view
+admin/interviews/aianalysis/  [include]
+admin/interviews/aianalysis/  -> ModelAdmin.changelist_view
+admin/interviews/aianalysis/add/  -> ModelAdmin.add_view
+admin/interviews/aianalysis/<path:object_id>/history/  -> ModelAdmin.history_view    
+admin/interviews/aianalysis/<path:object_id>/delete/  -> ModelAdmin.delete_view      
+admin/interviews/aianalysis/<path:object_id>/change/  -> ModelAdmin.change_view      
+admin/interviews/aianalysis/<path:object_id>/  -> View.as_view.<locals>.view
+admin/interviews/videosettings/  [include]
+admin/interviews/videosettings/  -> ModelAdmin.changelist_view
+admin/interviews/videosettings/add/  -> ModelAdmin.add_view
+admin/interviews/videosettings/<path:object_id>/history/  -> ModelAdmin.history_view 
+admin/interviews/videosettings/<path:object_id>/delete/  -> ModelAdmin.delete_view   
+admin/interviews/videosettings/<path:object_id>/change/  -> ModelAdmin.change_view   
+admin/interviews/videosettings/<path:object_id>/  -> View.as_view.<locals>.view      
+admin/^(?P<app_label>auth|interviews)/$  -> AdminSite.app_index
+admin/(?P<url>.*)$  -> AdminSite.catch_all_view
+api/  [include]
+api/session-access/<uuid:access_token>/  -> View.as_view.<locals>.view
+api/  [include]
+api/^hiring-managers/$  -> HiringManagerViewSet
+api/^hiring-managers\.(?P<format>[a-z0-9]+)/?$  -> HiringManagerViewSet
+api/^hiring-managers/dashboard/$  -> HiringManagerViewSet
+api/^hiring-managers/dashboard\.(?P<format>[a-z0-9]+)/?$  -> HiringManagerViewSet    
+api/^hiring-managers/(?P<pk>[^/.]+)/$  -> HiringManagerViewSet
+api/^hiring-managers/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> HiringManagerViewSet
+api/^campaigns/$  -> VideoCampaignViewSet
+api/^campaigns\.(?P<format>[a-z0-9]+)/?$  -> VideoCampaignViewSet
+api/^campaigns/(?P<pk>[^/.]+)/$  -> VideoCampaignViewSet
+api/^campaigns/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> VideoCampaignViewSet     
+api/^campaigns/(?P<pk>[^/.]+)/invite-candidate/$  -> VideoCampaignViewSet
+api/^campaigns/(?P<pk>[^/.]+)/invite-candidate\.(?P<format>[a-z0-9]+)/?$  -> VideoCampaignViewSet
+api/^campaigns/(?P<pk>[^/.]+)/sessions/$  -> VideoCampaignViewSet
+api/^campaigns/(?P<pk>[^/.]+)/sessions\.(?P<format>[a-z0-9]+)/?$  -> VideoCampaignViewSet
+api/^sessions/$  -> InterviewSessionViewSet
+api/^sessions\.(?P<format>[a-z0-9]+)/?$  -> InterviewSessionViewSet
+api/^sessions/(?P<pk>[^/.]+)/$  -> InterviewSessionViewSet
+api/^sessions/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> InterviewSessionViewSet   
+api/^sessions/(?P<pk>[^/.]+)/start/$  -> InterviewSessionViewSet
+api/^sessions/(?P<pk>[^/.]+)/start\.(?P<format>[a-z0-9]+)/?$  -> InterviewSessionViewSet
+api/^sessions/(?P<pk>[^/.]+)/submit-response/$  -> InterviewSessionViewSet
+api/^sessions/(?P<pk>[^/.]+)/submit-response\.(?P<format>[a-z0-9]+)/?$  -> InterviewSessionViewSet
+api/^evaluations/$  -> EvaluationViewSet
+api/^evaluations\.(?P<format>[a-z0-9]+)/?$  -> EvaluationViewSet
+api/^evaluations/(?P<pk>[^/.]+)/$  -> EvaluationViewSet
+api/^evaluations/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> EvaluationViewSet      
+api/^campaign-shares/$  -> CampaignShareViewSet
+api/^campaign-shares\.(?P<format>[a-z0-9]+)/?$  -> CampaignShareViewSet
+api/^campaign-shares/(?P<pk>[^/.]+)/$  -> CampaignShareViewSet
+api/^campaign-shares/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> CampaignShareViewSet
+api/^video-settings/$  -> VideoSettingsViewSet
+api/^video-settings\.(?P<format>[a-z0-9]+)/?$  -> VideoSettingsViewSet
+api/^video-settings/(?P<pk>[^/.]+)/$  -> VideoSettingsViewSet
+api/^video-settings/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> VideoSettingsViewSetapi/^dashboard-metrics/$  -> DashboardMetricsViewSet
+api/^dashboard-metrics\.(?P<format>[a-z0-9]+)/?$  -> DashboardMetricsViewSet
+api/^dashboard-metrics/(?P<pk>[^/.]+)/$  -> DashboardMetricsViewSet
+api/^dashboard-metrics/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> DashboardMetricsViewSet
+api/^ai-analysis/$  -> AIAnalysisViewSet
+api/^ai-analysis\.(?P<format>[a-z0-9]+)/?$  -> AIAnalysisViewSet
+api/^ai-analysis/(?P<pk>[^/.]+)/$  -> AIAnalysisViewSet
+api/^ai-analysis/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> AIAnalysisViewSet      
+api/^questions/$  -> QuestionViewSet
+api/^questions\.(?P<format>[a-z0-9]+)/?$  -> QuestionViewSet
+api/^questions/(?P<pk>[^/.]+)/$  -> QuestionViewSet
+api/^questions/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> QuestionViewSet
+api/^candidates/$  -> CandidateViewSet
+api/^candidates\.(?P<format>[a-z0-9]+)/?$  -> CandidateViewSet
+api/^candidates/(?P<pk>[^/.]+)/$  -> CandidateViewSet
+api/^candidates/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> CandidateViewSet        
+api/^responses/$  -> VideoResponseViewSet
+api/^responses\.(?P<format>[a-z0-9]+)/?$  -> VideoResponseViewSet
+api/^responses/(?P<pk>[^/.]+)/$  -> VideoResponseViewSet
+api/^responses/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> VideoResponseViewSet     
+api/^logs/$  -> SessionLogViewSet
+api/^logs\.(?P<format>[a-z0-9]+)/?$  -> SessionLogViewSet
+api/^logs/(?P<pk>[^/.]+)/$  -> SessionLogViewSet
+api/^logs/(?P<pk>[^/.]+)\.(?P<format>[a-z0-9]+)/?$  -> SessionLogViewSet
+api/^$  -> View.as_view.<locals>.view
+api/^\.(?P<format>[a-z0-9]+)/?$  -> View.as_view.<locals>.view
+api/auth/login/  -> View.as_view.<locals>.view
+api/auth/register/  -> View.as_view.<locals>.view
+api/auth/refresh/  -> View.as_view.<locals>.view
+api/auth/verify/  -> View.as_view.<locals>.view
+api/campaigns/<uuid:campaign_id>/analytics/  -> View.as_view.<locals>.view
+api/uploads/presign/  -> View.as_view.<locals>.view
+api/token/  -> View.as_view.<locals>.view
+api/token/refresh/  -> View.as_view.<locals>.view
