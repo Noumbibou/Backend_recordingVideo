@@ -120,16 +120,24 @@ class UnifiedLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        email = request.data.get("email")
+        # Accepte un identifiant qui peut être un email ou un username
+        identifier = request.data.get("email") or request.data.get("username")
         password = request.data.get("password")
 
-        # Récupération du user par email
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
+        if not identifier or not password:
+            return Response({"error": "Identifiant et mot de passe requis"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Trouver l'utilisateur par email OU username
+        user = None
+        # D'abord tenter par email exact
+        user = User.objects.filter(email=identifier).first()
+        if not user:
+            # Sinon tenter par username
+            user = User.objects.filter(username=identifier).first()
+        if not user:
             return Response({"error": "Utilisateur non trouvé"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Authentification
+        # Authentification via username (Django auth attend le username)
         user = authenticate(username=user.username, password=password)
         if not user:
             return Response({"error": "Mot de passe incorrect"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -208,8 +216,20 @@ class VideoCampaignViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return VideoCampaign.objects.filter(hiring_manager__user_profile__user=user)
-
+        qs = VideoCampaign.objects.filter(hiring_manager__user_profile__user=user)
+        # Auto-deactivate expired campaigns at query time
+        try:
+            now = timezone.now()
+            VideoCampaign.objects.filter(end_date__lt=now, is_active=True).update(is_active=False)
+        except Exception:
+            pass
+        # Optional filter by activity
+        is_active_param = self.request.query_params.get('is_active')
+        if is_active_param is not None:
+            val = str(is_active_param).lower() in ['1', 'true', 'yes']
+            qs = qs.filter(is_active=val)
+        return qs
+    
     # Utiliser le serializer de création pour POST/PUT, sinon le serializer standard pour GET
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -225,6 +245,13 @@ class VideoCampaignViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], url_path="invite-candidate")
     def invite_candidate(self, request, pk=None):
         campaign = self.get_object()
+        # Interdire l'invitation si la campagne est expirée ou inactive
+        now = timezone.now()
+        if campaign.end_date < now or not campaign.is_active:
+            return Response(
+                {"error": "La campagne est expirée ou inactive. L'invitation est impossible."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         candidate_id = request.data.get("candidate_id")
         email = request.data.get("email")
@@ -288,10 +315,18 @@ class VideoCampaignViewSet(viewsets.ModelViewSet):
         if campaign.hiring_manager.user_profile.user != request.user:
             raise PermissionDenied("Accès refusé à ces sessions.")
 
-        sessions_qs = campaign.sessions.select_related('candidate').prefetch_related('responses__evaluations', 'responses__ai_analysis')
+        sessions_qs = campaign.sessions.select_related('candidate', 'campaign').prefetch_related('responses__evaluations', 'responses__ai_analysis', 'campaign__questions')
 
         data = []
+        now = timezone.now()
         for s in sessions_qs:
+            # Auto-cancel strictly per business rule
+            if s.status not in ["completed", "cancelled"] and _should_cancel(s, now):
+                s.status = "cancelled"
+                try:
+                    s.save(update_fields=["status"])
+                except Exception:
+                    pass
             candidate = s.candidate
             responses = []
             for r in s.responses.all():
@@ -374,7 +409,27 @@ class InterviewSessionViewSet(viewsets.ModelViewSet):
             'responses__question',
             'logs'
         )
-        return queryset
+        # Optional filters
+        candidate_email = self.request.query_params.get('candidate_email')
+        if candidate_email:
+            queryset = queryset.filter(candidate__email__iexact=candidate_email)
+
+        status_param = self.request.query_params.get('status')
+        if status_param:
+            queryset = queryset.filter(status=status_param)
+
+        # Auto-cancel pass (side-effect) to keep status fresh when recruiter fetches sessions
+        try:
+            now = timezone.now()
+            for s in queryset:
+                if s.status not in ["completed", "cancelled"] and _should_cancel(s, now):
+                    s.status = "cancelled"
+                    s.save(update_fields=["status"])
+        except Exception:
+            pass
+
+        # Order newest first so recent sessions appear on page 1
+        return queryset.order_by('-invited_at')
     
     def get_serializer_context(self):
         # Ajout de la requête au contexte du sérialiseur
@@ -464,6 +519,13 @@ class EvaluationViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
             
+            # Bloquer l'évaluation si la session est annulée ou expirée
+            session_status = getattr(video_response.session, 'status', '').lower()
+            if session_status in ["cancelled", "expired"]:
+                error_msg = "Évaluation impossible: la session est annulée ou expirée."
+                logger.warning(error_msg)
+                return Response({"detail": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+            
             # Vérifier qu'il n'existe pas déjà une évaluation pour cette réponse
             if Evaluation.objects.filter(
                 video_response=video_response,
@@ -521,6 +583,16 @@ class EvaluationViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_403_FORBIDDEN
                 )
             
+            # Bloquer la modification si la session liée est annulée ou expirée
+            try:
+                session_status = getattr(instance.video_response.session, 'status', '').lower()
+                if session_status in ["cancelled", "expired"]:
+                    error_msg = "Modification impossible: la session est annulée ou expirée."
+                    logger.warning(error_msg)
+                    return Response({"detail": error_msg}, status=status.HTTP_400_BAD_REQUEST)
+            except Exception:
+                pass
+
             serializer = self.get_serializer(instance, data=request.data, partial=kwargs.pop('partial', False))
             if not serializer.is_valid():
                 logger.warning(f"Données invalides: {serializer.errors}")
@@ -615,6 +687,58 @@ from datetime import timedelta
 
 logger = logging.getLogger(__name__)
 
+def _is_link_invalid(session, now):
+    """Return True if the candidate link is no longer valid."""
+    try:
+        # Link is considered invalid once the session has been used to start the interview
+        if getattr(session, 'is_used', False):
+            return True
+        if session.expires_at and session.expires_at < now:
+            return True
+    except Exception:
+        pass
+    try:
+        campaign = session.campaign
+        if campaign.end_date and campaign.end_date < now:
+            return True
+        # if campaign explicitly inactive
+        if hasattr(campaign, 'is_active') and campaign.is_active is False:
+            return True
+    except Exception:
+        pass
+    return False
+
+def _is_incomplete(session):
+    """Return True if the session has NOT submitted all required responses.
+    If no required questions are flagged, consider all campaign questions as required.
+    """
+    try:
+        campaign = session.campaign
+        required_qs = campaign.questions.filter(is_required=True)
+        if not required_qs.exists():
+            required_qs = campaign.questions.all()
+        required_ids = set(required_qs.values_list('id', flat=True))
+        if not required_ids:
+            # no questions at all -> consider incomplete until completed explicitly
+            return True
+        answered_q_ids = set(session.responses.values_list('question_id', flat=True))
+        return not required_ids.issubset(answered_q_ids)
+    except Exception:
+        # Be safe and consider it incomplete if we cannot compute properly
+        return True
+
+def _should_cancel(session, now):
+    """Business rule: cancel only when candidate has started and didn't finish,
+    and the link is no longer valid.
+    Started means status in ["started", "in_progress"].
+    """
+    try:
+        if session.status not in ["started", "in_progress"]:
+            return False
+        return _is_link_invalid(session, now) and _is_incomplete(session)
+    except Exception:
+        return False
+
 class StartInterviewView(APIView):
     """
     Marque la session comme démarrée et invalide le lien
@@ -635,7 +759,11 @@ class StartInterviewView(APIView):
                 
             if session.expires_at < timezone.now():
                 session.is_used = True
-                session.status = "expired"
+                # Cancel if incomplete per business rule
+                if _is_incomplete(session):
+                    session.status = "cancelled"
+                else:
+                    session.status = "expired"
                 session.save()
                 return Response(
                     {"error": "Le lien a expiré", "code": "link_expired"},
@@ -687,10 +815,14 @@ class CandidateSessionAccessView(APIView):
 
         now = timezone.now()
 
-        # Vérifier expiration
-        if session.expires_at < now:
+        # Vérification de la validité (expiration session/campagne ou campagne inactive)
+        if _is_link_invalid(session, now):
             session.is_used = True
-            session.status = "expired"
+            # Cancel if incomplete per business rule
+            if _is_incomplete(session):
+                session.status = "cancelled"
+            else:
+                session.status = "expired"
             session.save()
             return Response(
                 {"error": "Ce lien a expiré", "code": "link_expired"},
@@ -834,23 +966,28 @@ class SubmitInterviewResponsesView(APIView):
                 try:
                     response_json = json.loads(response_data)
                     question_id = response_json.get('question_id')
-                    preparation_time = int(response_json.get('preparation_time', 0))
-                    recording_time = int(response_json.get('recording_time', 0))
+                    # Front envoie en millisecondes -> convertir en secondes entières positives
+                    preparation_time_ms = int(response_json.get('preparation_time', 0) or 0)
+                    recording_time_ms = int(response_json.get('recording_time', 0) or 0)
+                    preparation_time_used = max(0, preparation_time_ms // 1000)
+                    response_time_used = max(0, recording_time_ms // 1000)
                     video_file = request.FILES.get(f"video_{question_id}")
 
                     if not video_file:
+                        logger.warning("No video file found for question_id=%s", question_id)
                         continue
 
-                    # Créer la réponse vidéo avec la taille du fichier
+                    # Créer la réponse vidéo avec les bons champs du modèle
                     video_response = VideoResponse.objects.create(
                         session=session,
                         question_id=question_id,
                         video_file=video_file,
-                        preparation_time=timedelta(seconds=preparation_time // 1000),  # convertir en secondes
-                        recording_time=timedelta(seconds=recording_time // 1000),     # convertir en secondes
-                        status="completed",
-                        file_size=video_file.size,  # Enregistrer la taille du fichier en octets
-                        format=video_file.name.split('.')[-1].lower() if '.' in video_file.name else ''  # Enregistrer le format du fichier
+                        preparation_time_used=preparation_time_used,
+                        response_time_used=response_time_used,
+                        duration=response_time_used,
+                        upload_status="completed",
+                        file_size=getattr(video_file, 'size', 0),
+                        format=(video_file.name.split('.')[-1].lower() if '.' in video_file.name else '')
                     )
 
                     # Journaliser la soumission
@@ -860,15 +997,16 @@ class SubmitInterviewResponsesView(APIView):
                         message=f"Réponse pour la question {question_id} soumise",
                         metadata={
                             "question_id": str(question_id),
-                            "preparation_time": preparation_time,
-                            "recording_time": recording_time,
-                            "file_size": video_file.size
+                            "preparation_time_used": preparation_time_used,
+                            "response_time_used": response_time_used,
+                            "file_size": getattr(video_file, 'size', 0)
                         }
                     )
 
                 except Exception as e:
-                    logger.error(f"Erreur lors du traitement d'une réponse: {str(e)}", exc_info=True)
-                    continue
+                    logger.error("Erreur lors du traitement d'une réponse (question_id=%s): %s", question_id, str(e), exc_info=True)
+                    # Propager l'erreur pour rollback de la transaction et informer le client
+                    return Response({"error": "invalid_response_payload", "detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
             # Mettre à jour le statut de la session si toutes les réponses sont soumises
             if session.responses.count() >= session.campaign.questions.count():

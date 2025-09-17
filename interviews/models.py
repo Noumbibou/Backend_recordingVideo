@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.utils import timezone
 import uuid
 
 # ----------------------------
@@ -64,6 +65,22 @@ class VideoCampaign(models.Model):
     
     def __str__(self):
         return f"{self.title} - {self.hiring_manager.company}"
+
+    @property
+    def is_expired(self):
+        try:
+            return self.end_date < timezone.now()
+        except Exception:
+            return False
+
+    def save(self, *args, **kwargs):
+        # Si la campagne est expirée, la marquer inactif automatiquement
+        try:
+            if self.end_date and self.end_date < timezone.now():
+                self.is_active = False
+        except Exception:
+            pass
+        super().save(*args, **kwargs)
 
 
 class Question(models.Model):
