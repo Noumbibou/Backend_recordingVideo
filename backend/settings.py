@@ -15,6 +15,7 @@ import os
 from decouple import config
 from datetime import timedelta
 from corsheaders.defaults import default_headers
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,12 +25,15 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-s7)tgb+q!yx2kcu@a-uwr)c+z-f5(5&@l!yrda=1@@f@v!xl3^'
+# Use environment variable in production
+SECRET_KEY = config('SECRET_KEY', default='insecure-default-key-change-me')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = (
+    ['*'] if DEBUG else [h for h in config('ALLOWED_HOSTS', default='').split(',') if h]
+)
 
 
 # Application definition
@@ -84,15 +88,17 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# Database (via DATABASE_URL). Example:
+# postgres://USER:PASSWORD@HOST:PORT/DBNAME
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'enregistrements_video',
-        'USER': 'postgres',
-        'PASSWORD': 'Bidou0204./',
-        'HOST': 'localhost',
-        'PORT': '5432',
-    }
+    'default': dj_database_url.config(
+        default=config(
+            'DATABASE_URL',
+            default='postgres://postgres:postgres@localhost:5432/postgres'
+        ),
+        conn_max_age=600,
+        ssl_require=False,
+    )
 }
 
 
@@ -131,7 +137,28 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# WhiteNoise static files storage and default storage per environment
+if DEBUG:
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+else:
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
 
 
 # Default primary key field type
@@ -142,9 +169,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = DEBUG  # En développement seulement
 if not DEBUG:
+    # Define allowed origins for production via env
+    # e.g., CORS_ALLOWED_ORIGINS=https://ton-frontend.netlify.app,https://www.ton-domaine.com
     CORS_ALLOWED_ORIGINS = [
-        'http://localhost:3000',  # Votre frontend React
-        'https://votredomaine.com',  # Votre domaine de production
+        o for o in config('CORS_ALLOWED_ORIGINS', default='').split(',') if o
     ]
 
 # Autoriser les en-têtes et méthodes nécessaires
@@ -221,11 +249,7 @@ AWS_S3_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100MB (taille max en mémoire)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Backend de stockage (S3 en production, local en dev)
-if DEBUG:
-    DEFAULT_FILE_STORAGE = 'django.core.files.storage.FileSystemStorage'
-else:
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+# Backend de stockage: géré via STORAGES ci-dessus
 
 
 # Video constraints
@@ -237,11 +261,12 @@ ALLOWED_VIDEO_MIME_TYPES = [
 ]
 MAX_RECORDING_DURATION = 600  # 10 minutes (en secondes)
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://votre-domaine.com",
-]
+CSRF_TRUSTED_ORIGINS = (
+    [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ] if DEBUG else [o for o in config('CSRF_TRUSTED_ORIGINS', default='').split(',') if o]
+)
 
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
@@ -256,11 +281,11 @@ SIMPLE_JWT = {
     "BLACKLIST_AFTER_ROTATION": True,                # L'ancien refresh est invalidé
     "AUTH_HEADER_TYPES": ("Bearer",),                # Utilisation du header Authorization: Bearer <token>
 }
-# settings.py
+# Email
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'bidourichnel@gmail.com'  # Votre adresse Gmail
-EMAIL_HOST_PASSWORD = 'asaw tutd wxkv wnno'  # Mot de passe d'application Gmail
-DEFAULT_FROM_EMAIL = 'bidourichnel@gmail.com'
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default=EMAIL_HOST_USER)
