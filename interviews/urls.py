@@ -12,7 +12,9 @@ from .views import (
     AIAnalysisViewSet, QuestionViewSet, 
     CandidateViewSet, VideoResponseViewSet, 
     SessionLogViewSet, PresignUploadView,
-    SubmitInterviewResponsesView
+    SubmitInterviewResponsesView,
+    CandidateInterviewsView, CandidateInterviewDetailView,
+    AuthMeView,
 )
 
 router = DefaultRouter()
@@ -43,9 +45,18 @@ urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('auth/verify/', TokenVerifyView.as_view(), name='token_verify'),
+    # Auth profile endpoints (and compatibility aliases expected by frontend)
+    path('auth/me/', AuthMeView.as_view(), name='auth-me'),
+    path('users/me/', AuthMeView.as_view(), name='users-me'),
+    path('auth/user/', AuthMeView.as_view(), name='auth-user'),
+    path('profile/', AuthMeView.as_view(), name='profile'),
 
     # Campaign analytics endpoint
     path('campaigns/<uuid:campaign_id>/analytics/', CampaignAnalyticsView.as_view(), name='campaign-analytics'),
+
+    # Candidate self-service endpoints
+    path('candidate/interviews/', CandidateInterviewsView.as_view(), name='candidate-interviews'),
+    path('candidate/interviews/<uuid:session_id>/', CandidateInterviewDetailView.as_view(), name='candidate-interview-detail'),
 
     # Presigned URL for uploads
     path('uploads/presign/', PresignUploadView.as_view(), name='presign-upload'),

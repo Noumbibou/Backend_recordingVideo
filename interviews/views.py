@@ -182,6 +182,48 @@ class UnifiedLoginView(APIView):
 # VIEWSETS PRINCIPAUX
 # -------------------------------
 
+class AuthMeView(APIView):
+    """
+    GET /api/auth/me/
+    Returns a normalized profile for the authenticated user with a stable 'role'.
+    Also used for compatibility aliases like /api/users/me/, /api/auth/user/, /api/profile/.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        role = 'admin'
+        first_name = getattr(user, 'first_name', '')
+        last_name = getattr(user, 'last_name', '')
+        company = ''
+        if hasattr(user, 'profile'):
+            ut = getattr(user.profile, 'user_type', '')
+            if ut in ['candidate', 'hiring_manager']:
+                role = ut
+            # enrich fields depending on role
+            try:
+                if ut == 'hiring_manager' and hasattr(user.profile, 'hiring_manager'):
+                    company = getattr(user.profile.hiring_manager, 'company', '')
+                if ut == 'candidate' and hasattr(user.profile, 'candidate'):
+                    # candidate name can be on candidate record
+                    cand = user.profile.candidate
+                    first_name = first_name or getattr(cand, 'first_name', '')
+                    last_name = last_name or getattr(cand, 'last_name', '')
+            except Exception:
+                pass
+
+        payload = {
+            "username": getattr(user, 'username', ''),
+            "email": getattr(user, 'email', ''),
+            "role": role,
+            "user_type": role,
+            "company": company,
+            "first_name": first_name,
+            "last_name": last_name,
+            "name": (first_name + ' ' + last_name).strip() or getattr(user, 'username', ''),
+        }
+        return Response(payload)
+
 class HiringManagerViewSet(viewsets.ModelViewSet):
     queryset = HiringManager.objects.all()
     serializer_class = HiringManagerSerializer
@@ -228,7 +270,7 @@ class VideoCampaignViewSet(viewsets.ModelViewSet):
         if is_active_param is not None:
             val = str(is_active_param).lower() in ['1', 'true', 'yes']
             qs = qs.filter(is_active=val)
-        return qs
+        return qs.order_by('-id')
     
     # Utiliser le serializer de création pour POST/PUT, sinon le serializer standard pour GET
     def get_serializer_class(self):
@@ -671,8 +713,139 @@ class CampaignAnalyticsView(APIView):
 
 
 # -------------------------------
-# EXTRA VUES
+# CANDIDATE SELF-SERVICE ENDPOINTS
 # -------------------------------
+class CandidateInterviewsView(APIView):
+    """
+    GET /api/candidate/interviews/
+    Returns the list of interview sessions for the authenticated candidate only.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        # Ensure user is a candidate
+        try:
+            candidate = user.profile.candidate
+        except Exception:
+            return Response({"detail": "Accès réservé aux candidats."}, status=status.HTTP_403_FORBIDDEN)
+
+        qs = (
+            InterviewSession.objects
+            .filter(candidate=candidate)
+            .select_related('campaign')
+            .order_by('-invited_at')
+        )
+
+        items = []
+        for s in qs:
+            campaign = s.campaign
+            items.append({
+                "id": str(s.id),
+                "campaign_id": str(campaign.id),
+                "campaign_title": campaign.title,
+                "status": s.status,
+                "invited_at": s.invited_at,
+                "started_at": s.started_at,
+                "completed_at": s.completed_at,
+                "questions_count": getattr(campaign, 'questions', []).count() if hasattr(campaign, 'questions') else 0,
+            })
+
+        return Response({"interviews": items})
+
+
+class CandidateInterviewDetailView(APIView):
+    """
+    GET /api/candidate/interviews/{session_id}/
+    Returns full details of a candidate interview including questions, responses videos and evaluations.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, session_id):
+        user = request.user
+        # Ensure user is a candidate
+        try:
+            candidate = user.profile.candidate
+        except Exception:
+            return Response({"detail": "Accès réservé aux candidats."}, status=status.HTTP_403_FORBIDDEN)
+
+        session = get_object_or_404(
+            InterviewSession.objects.select_related('campaign').prefetch_related(
+                'responses__question', 'responses__evaluations'
+            ),
+            id=session_id,
+            candidate=candidate,
+        )
+
+        campaign = session.campaign
+        # Build questions list
+        questions = []
+        try:
+            for q in campaign.questions.all().order_by('order'):
+                questions.append({
+                    "id": q.id,
+                    "order": q.order,
+                    "text": q.text,
+                    "preparation_time": q.preparation_time,
+                    "response_time_limit": q.response_time_limit,
+                })
+        except Exception:
+            pass
+
+        # Map responses by question
+        responses = []
+        for r in session.responses.all():
+            evals = []
+            for ev in r.evaluations.all():
+                evals.append({
+                    "id": ev.id,
+                    "overall_score": ev.overall_score,
+                    "technical_skill": ev.technical_skill,
+                    "communication": ev.communication,
+                    "motivation": ev.motivation,
+                    "cultural_fit": ev.cultural_fit,
+                    "notes": ev.notes,
+                    "evaluated_at": ev.evaluated_at,
+                })
+
+            # prefer absolute media URL when available via serializer logic
+            video_url = None
+            try:
+                if r.video_file:
+                    video_url = request.build_absolute_uri(r.video_file.url)
+                else:
+                    video_url = r.video_url
+            except Exception:
+                video_url = r.video_url
+
+            responses.append({
+                "id": str(r.id),
+                "question_id": r.question.id,
+                "question_order": r.question.order,
+                "video_url": video_url,
+                "duration": r.duration,
+                "recorded_at": r.recorded_at,
+                "evaluations": evals,
+            })
+
+        payload = {
+            "id": str(session.id),
+            "status": session.status,
+            "invited_at": session.invited_at,
+            "started_at": session.started_at,
+            "completed_at": session.completed_at,
+            "campaign": {
+                "id": str(campaign.id),
+                "title": campaign.title,
+                "description": campaign.description,
+                "start_date": campaign.start_date,
+                "end_date": campaign.end_date,
+            },
+            "questions": questions,
+            "responses": responses,
+        }
+
+        return Response(payload)
 from rest_framework import serializers, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
