@@ -44,59 +44,149 @@ class RegisterView(generics.CreateAPIView):
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        username = request.data.get('username')
-        email = request.data.get('email')
+        username = (request.data.get('username') or '').strip()
+        email = (request.data.get('email') or '').strip().lower()
         password = request.data.get('password')
-        user_type = request.data.get('user_type')  # "candidate" ou "hiring_manager"
+        # Support both 'user_type' and legacy 'role' from frontend
+        user_type = (request.data.get('user_type') or request.data.get('role') or '').strip()
 
         # Vérification des champs obligatoires
-        if not all([username, email, password, user_type]):
-            return Response({"error": "Tous les champs (username, email, password, user_type) sont requis."},
+        if not all([email, password, user_type]):
+            return Response({"error": "Les champs (email, password, user_type) sont requis."},
                             status=status.HTTP_400_BAD_REQUEST)
 
         if user_type not in ['candidate', 'hiring_manager']:
             return Response({"error": "user_type doit être 'candidate' ou 'hiring_manager'."},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        # Créer l'utilisateur Django
-        user = User.objects.create_user(username=username, email=email, password=password)
-
-        # Créer le profil utilisateur
-        profile = UserProfile.objects.create(
-            user=user,
-            user_type=user_type
-        )
-
-        response_data = {
-            "user_id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "user_type": user_type
-        }
-
-        # Si candidat
+        # Flux spécial: inscription CANDIDAT uniquement si un compte 'placeholder' existe déjà
+        # Ce placeholder est créé lors de l'invitation avec username == email et sans mot de passe utilisable
         if user_type == 'candidate':
-            # Tous les champs obligatoires côté candidat
-            first_name = request.data.get('first_name')
-            last_name = request.data.get('last_name')
-            phone = request.data.get('phone')
-            linkedin_url = request.data.get('linkedin_url', '')
+            # Forcer username = email pour les candidats
+            username = email
 
-            if not all([first_name, last_name, phone]):
-                return Response({"error": "first_name, last_name et phone sont obligatoires pour un candidat."},
-                                status=status.HTTP_400_BAD_REQUEST)
+            # Chercher un utilisateur existant dont username == email (invité auparavant)
+            user = User.objects.filter(Q(username__iexact=email) | Q(email__iexact=email)).first()
+            if not user:
+                # Autoriser la création d'un compte candidat même sans invitation préalable
+                # Exiger les champs candidats requis
+                first_name = request.data.get('first_name') or ''
+                last_name = request.data.get('last_name') or ''
+                phone = request.data.get('phone') or ''
+                linkedin_url = request.data.get('linkedin_url', '') or ''
 
-            Candidate.objects.create(
-                user_profile=profile,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-                phone=phone,
-                linkedin_url=linkedin_url
+                if not all([first_name, last_name, phone]):
+                    return Response(
+                        {"error": "first_name, last_name et phone sont obligatoires pour un candidat."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Créer un nouveau user directement activé (avec mot de passe défini)
+                user = User.objects.create_user(username=email, email=email, password=password)
+                profile = UserProfile.objects.create(user=user, user_type='candidate')
+                Candidate.objects.create(
+                    user_profile=profile,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone=phone,
+                    linkedin_url=linkedin_url
+                )
+
+                response_data = {
+                    "user_id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "user_type": 'candidate'
+                }
+                return Response({"message": "Compte candidat créé avec succès", "user": response_data}, status=status.HTTP_201_CREATED)
+
+            # Si déjà activé (mot de passe défini), bloquer la réinscription
+            # Considérer comme "non activé" si password est vide ou inutilisable
+            password_field = (user.password or '').strip()
+            password_usable = user.has_usable_password() and password_field not in ('', None)
+            if password_usable:
+                return Response(
+                    {"error": "Un compte candidat actif existe déjà pour cet email. Connectez-vous."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Mettre à jour email canonique et définir le mot de passe
+            user.email = email
+            user.username = user.username or email
+            user.set_password(password)
+            user.save(update_fields=["email", "password", "username"])  # username au cas où vide
+
+            # S'assurer que le profil candidat existe
+            profile = getattr(user, 'profile', None)
+            if profile is None:
+                profile = UserProfile.objects.create(user=user, user_type='candidate')
+            else:
+                if getattr(profile, 'user_type', None) != 'candidate':
+                    profile.user_type = 'candidate'
+                    profile.save(update_fields=["user_type"])
+
+            # Compléter/mettre à jour les infos candidat
+            first_name = request.data.get('first_name') or ''
+            last_name = request.data.get('last_name') or ''
+            phone = request.data.get('phone') or ''
+            linkedin_url = request.data.get('linkedin_url', '') or ''
+
+            # Tolérant: si la fiche candidat existe (créée à l'invitation), l'actualiser
+            cand = getattr(profile, 'candidate', None)
+            if cand is None:
+                if not all([first_name, last_name, phone]):
+                    return Response(
+                        {"error": "first_name, last_name et phone sont obligatoires pour finaliser l'inscription candidat."},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                Candidate.objects.create(
+                    user_profile=profile,
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    phone=phone,
+                    linkedin_url=linkedin_url
+                )
+            else:
+                # Mettre à jour les champs si fournis
+                updated = False
+                for field, val in {
+                    'email': email,
+                    'first_name': first_name or cand.first_name,
+                    'last_name': last_name or cand.last_name,
+                    'phone': phone or cand.phone,
+                    'linkedin_url': linkedin_url or cand.linkedin_url,
+                }.items():
+                    if getattr(cand, field) != val:
+                        setattr(cand, field, val)
+                        updated = True
+                if updated:
+                    cand.save()
+
+            response_data = {
+                "user_id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "user_type": 'candidate'
+            }
+            return Response({"message": "Compte candidat activé avec succès", "user": response_data}, status=status.HTTP_201_CREATED)
+
+        # Flux RECRUTEUR: inchangé, on crée un nouvel utilisateur
+        if user_type == 'hiring_manager':
+            if not username:
+                return Response({"error": "username est requis pour un recruteur."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if User.objects.filter(Q(username__iexact=username) | Q(email__iexact=email)).exists():
+                return Response({"error": "Un utilisateur existe déjà avec ce username ou email."}, status=status.HTTP_400_BAD_REQUEST)
+
+            user = User.objects.create_user(username=username, email=email, password=password)
+
+            profile = UserProfile.objects.create(
+                user=user,
+                user_type='hiring_manager'
             )
 
-        # Si recruteur
-        if user_type == 'hiring_manager':
             company = request.data.get('company')
             department = request.data.get('department')
             phone = request.data.get('phone')
@@ -112,8 +202,16 @@ class RegisterView(generics.CreateAPIView):
                 phone=phone
             )
 
-        return Response({"message": f"Compte {user_type} créé avec succès", "user": response_data},
-                        status=status.HTTP_201_CREATED)
+            response_data = {
+                "user_id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "user_type": 'hiring_manager'
+            }
+            return Response({"message": "Compte recruteur créé avec succès", "user": response_data}, status=status.HTTP_201_CREATED)
+
+        # Cas inattendu (devrait être filtré plus haut)
+        return Response({"error": "Type d'utilisateur non supporté."}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UnifiedLoginView(APIView):
@@ -315,8 +413,13 @@ class VideoCampaignViewSet(viewsets.ModelViewSet):
                         {"error": "Le candidat n'existe pas. Fournissez first_name et last_name pour créer un nouveau candidat."},
                         status=status.HTTP_400_BAD_REQUEST
                     )
-                # Créer un User “dummy” pour le candidat
+                # Créer un User “dummy” pour le candidat et bloquer l'auth tant qu'il n'a pas défini de mot de passe
                 user = User.objects.create(username=email, email=email)
+                try:
+                    user.set_unusable_password()
+                    user.save(update_fields=["password"])
+                except Exception:
+                    pass
                 user_profile = UserProfile.objects.create(user=user, user_type='candidate')
 
                 # Créer le candidat
@@ -1244,6 +1347,21 @@ class CandidateViewSet(viewsets.ModelViewSet):
     queryset = Candidate.objects.all()
     serializer_class = CandidateSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        # If user is a hiring manager, restrict to candidates tied to their campaigns' sessions
+        try:
+            hm = user.profile.hiring_manager
+            return (
+                Candidate.objects
+                .filter(interviews__campaign__hiring_manager=hm)
+                .distinct()
+                .order_by('-id')
+            )
+        except Exception:
+            # Otherwise return none to avoid leaking data
+            return Candidate.objects.none()
 
     def perform_create(self, serializer):
         # Si tu veux éviter les doublons email
