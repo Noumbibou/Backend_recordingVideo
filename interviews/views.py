@@ -451,6 +451,92 @@ class VideoCampaignViewSet(viewsets.ModelViewSet):
             "session": session_data
         }
         return Response(response_payload, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=["post"], url_path="bulk-invite")
+    def bulk_invite(self, request, pk=None):
+        """
+        POST /api/campaigns/{id}/bulk-invite/
+        Body JSON: { "candidates": [ {"email": "...", "first_name": "...", "last_name": "...", "phone": "...", "linkedin_url": "..."}, ... ] }
+        Returns { successes: [...], errors: [...] }
+        """
+        campaign = self.get_object()
+        now = timezone.now()
+        if campaign.end_date < now or not campaign.is_active:
+            return Response({"error": "La campagne est expirée ou inactive. L'invitation est impossible."}, status=status.HTTP_400_BAD_REQUEST)
+
+        items = request.data.get("candidates")
+        if not isinstance(items, list) or not items:
+            return Response({"error": "'candidates' doit être une liste non vide."}, status=status.HTTP_400_BAD_REQUEST)
+
+        successes = []
+        errors = []
+
+        for idx, payload in enumerate(items):
+            try:
+                email = (payload.get("email") or "").strip().lower()
+                first_name = (payload.get("first_name") or "").strip()
+                last_name = (payload.get("last_name") or "").strip()
+                phone = (payload.get("phone") or "").strip()
+                linkedin_url = (payload.get("linkedin_url") or "").strip()
+
+                if not email or not first_name or not last_name:
+                    raise ValueError("email, first_name et last_name sont requis")
+
+                # Récupérer/Créer le candidat
+                candidate = Candidate.objects.filter(email=email).first()
+                if not candidate:
+                    # Placeholder user
+                    user = User.objects.filter(Q(username__iexact=email) | Q(email__iexact=email)).first()
+                    if not user:
+                        user = User.objects.create(username=email, email=email)
+                        try:
+                            user.set_unusable_password()
+                            user.save(update_fields=["password"])
+                        except Exception:
+                            pass
+                    profile = getattr(user, 'profile', None)
+                    if profile is None:
+                        profile = UserProfile.objects.create(user=user, user_type='candidate')
+                    else:
+                        if getattr(profile, 'user_type', '') != 'candidate':
+                            profile.user_type = 'candidate'
+                            profile.save(update_fields=["user_type"])
+                    candidate = Candidate.objects.create(
+                        user_profile=profile,
+                        email=email,
+                        first_name=first_name,
+                        last_name=last_name,
+                        phone=phone,
+                        linkedin_url=linkedin_url
+                    )
+                else:
+                    # Ne pas modifier les informations du candidat existant
+                    # (first_name, last_name, phone, linkedin_url restent inchangés)
+                    pass
+
+                # Créer la session
+                session = InterviewSession.objects.create(
+                    campaign=campaign,
+                    candidate=candidate,
+                    expires_at=campaign.end_date
+                )
+
+                session_data = InterviewSessionSerializer(session, context={"request": request}).data
+                successes.append({
+                    "email": email,
+                    "candidate_id": str(candidate.id),
+                    "session": session_data,
+                    "access_token": str(session.access_token)
+                })
+            except Exception as e:
+                errors.append({
+                    "index": idx,
+                    "payload": payload,
+                    "error": str(e)
+                })
+
+        status_code = status.HTTP_207_MULTI_STATUS if errors else status.HTTP_201_CREATED
+        return Response({"successes": successes, "errors": errors}, status=status_code)
     
     @action(detail=True, methods=["get"], url_path="sessions")
     def list_sessions(self, request, pk=None):

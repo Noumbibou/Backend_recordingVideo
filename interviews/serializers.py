@@ -264,7 +264,17 @@ class CreateCampaignSerializer(serializers.ModelSerializer):
         return campaign
 
     def validate(self, data):
-        if data['start_date'] >= data['end_date']:
+        from django.utils import timezone
+        start = data.get('start_date')
+        end = data.get('end_date')
+        now = timezone.now()
+        if start is None or end is None:
+            raise serializers.ValidationError("Les dates de début et de fin sont requises.")
+        # Ensure start >= now
+        if start < now:
+            raise serializers.ValidationError("La date de début doit être postérieure à maintenant.")
+        # Ensure end > start
+        if start >= end:
             raise serializers.ValidationError("La date de fin doit être après la date de début.")
         return data
 
