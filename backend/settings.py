@@ -91,17 +91,15 @@ WSGI_APPLICATION = 'backend.wsgi.application'
 # Database (via DATABASE_URL). Example:
 # postgres://USER:PASSWORD@HOST:PORT/DBNAME
 DATABASES = {
-    'default': dj_database_url.config(
-        default=config(
-            'DATABASE_URL',
-            default='postgres://postgres:postgres@localhost:5432/postgres'
-        ),
-        conn_max_age=600,
-        ssl_require=False,
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'enregistrements_video',
+        'USER': 'postgres',  # ton user PostgreSQL
+        'PASSWORD': 'Fnrw0204./',
+        'HOST': 'localhost',
+        'PORT': '5432',
+    }
 }
-
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

@@ -20,7 +20,6 @@ Code principal dans `interviews/`:
 - Python 3.10+
 - Pipenv ou venv + pip
 - PostgreSQL (recommandé) ou SQLite pour dev
-- Variables d'environnement (voir `.env`)
 
 
 ## Installation
@@ -32,7 +31,7 @@ python -m venv .venv
 
 # Installer les dépendances
 pip install -r requirements.txt
-
+pip install -r dev-requirements.txt
 # Migrer la base
 python manage.py migrate
 
@@ -157,7 +156,7 @@ API accessible via: `http://localhost:8000/api/`
   - `GET /api/auth/me/`  (profil et rôle normalisés)
 
 - Upload vidéo (S3 presign)
-  - `POST /api/presign-upload/` body: `{ campaign_id, session_id, filename, max_mb }`
+  - `POST /api/uploads/presign/` body: `{ campaign_id, session_id, filename, max_mb }`
 
 
 ## Flux métier principaux

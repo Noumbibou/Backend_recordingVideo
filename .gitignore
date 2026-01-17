@@ -35,3 +35,8 @@ htmlcov/
 # System files
 .DS_Store
 Thumbs.db
+
+# Secrets and local dumps
+.env
+urls.txt
+scripts/url.txt
